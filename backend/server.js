@@ -12,6 +12,51 @@ const PLAYER_ID_PATTERN = /^[a-zA-Z0-9_-]{8,64}$/;
 const DEFAULT_TIME_CONTROL = { minutes: 10, incrementSeconds: 0 };
 const MAX_CHAT_LENGTH = 500;
 const CHAT_COOLDOWN_MS = 750;
+const AUTH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const AUTH_SECRET = process.env.AUTH_SECRET || 'development-only-change-me';
+if (process.env.NODE_ENV === 'production' && (!process.env.AUTH_SECRET || !process.env.CORS_ORIGIN)) {
+  throw new Error('Production startup requires AUTH_SECRET and CORS_ORIGIN.');
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  return new Promise((resolve, reject) => {
+    crypto.pbkdf2(password, salt, 120000, 32, 'sha256', (error, derivedKey) => {
+      if (error) reject(error);
+      else resolve(`${salt}:${derivedKey.toString('hex')}`);
+    });
+  });
+}
+
+async function verifyPassword(password, encoded) {
+  const [salt, expected] = encoded.split(':');
+  const actual = await hashPassword(password, salt);
+  return crypto.timingSafeEqual(Buffer.from(actual.split(':')[1], 'hex'), Buffer.from(expected, 'hex'));
+}
+
+function createAuthToken(user) {
+  const payload = Buffer.from(JSON.stringify({
+    userId: user.userId,
+    email: user.email,
+    name: user.name,
+    expiresAt: Date.now() + AUTH_TOKEN_TTL_MS,
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function readAuthToken(token) {
+  if (typeof token !== 'string') return null;
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return null;
+  const expected = crypto.createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+  try {
+    const user = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return user.expiresAt > Date.now() ? user : null;
+  } catch (_error) {
+    return null;
+  }
+}
 
 function isPayload(payload) {
   return payload !== null && typeof payload === 'object' && !Array.isArray(payload);
@@ -83,7 +128,12 @@ function createChessServer(options = {}) {
     .filter(Boolean);
   const corsOrigin = allowedOrigins.includes('*') ? '*' : allowedOrigins;
   const store = createStore(
-    options.databasePath || process.env.DB_PATH || path.join(__dirname, 'data', 'chess.sqlite'),
+    options.databasePath || process.env.DB_PATH
+      ? { databasePath: options.databasePath || process.env.DB_PATH }
+      : {
+        mongoUri: options.mongoUri || process.env.MONGODB_URI,
+        databaseName: options.databaseName || process.env.MONGODB_DATABASE,
+      },
   );
   const games = new Map();
   const playerGames = new Map();
@@ -97,6 +147,10 @@ function createChessServer(options = {}) {
 
   const io = new Server(httpServer, {
     cors: { origin: corsOrigin },
+  });
+  io.use((socket, next) => {
+    socket.user = readAuthToken(socket.handshake.auth?.token);
+    next();
   });
 
   function gameState(game) {
@@ -149,6 +203,26 @@ function createChessServer(options = {}) {
 
   function emitGameState(game) {
     io.to(game.roomId).emit('gameState', gameState(game));
+    if (!game.result) {
+      const state = gameState(game);
+      Promise.resolve(store.saveActiveGame({
+        roomId: game.roomId,
+        gameId: game.gameId,
+        pgn: state.pgn,
+        players: {
+          w: game.players.w ? { playerId: game.players.w.playerId, name: game.players.w.name } : null,
+          b: game.players.b ? { playerId: game.players.b.playerId, name: game.players.b.name } : null,
+        },
+        playerNames: game.playerNames,
+        timeControl: game.timeControl,
+        createdAt: game.createdAt,
+        result: game.result,
+        termination: game.termination,
+        drawOffer: game.drawOffer,
+        rematchOffers: [...game.rematchOffers],
+        clock: state.clock,
+      })).catch((error) => console.error(`Could not persist active game ${game.gameId}:`, error));
+    }
   }
 
   function respond(socket, acknowledgement, event, result) {
@@ -186,8 +260,7 @@ function createChessServer(options = {}) {
   }
 
   function persistFinishedGame(game) {
-    try {
-      store.saveGame({
+    Promise.resolve(store.saveGame({
         gameId: game.gameId,
         roomId: game.roomId,
         whitePlayerId: game.players.w?.playerId || null,
@@ -201,13 +274,12 @@ function createChessServer(options = {}) {
         timeControl: game.timeControl,
         createdAt: game.createdAt,
         finishedAt: new Date().toISOString(),
-      });
-    } catch (error) {
+      })).catch((error) => {
       console.error(`Could not persist result for game ${game.gameId}:`, error);
       io.to(game.roomId).emit('persistenceError', {
         message: 'The game ended, but its result could not be saved.',
       });
-    }
+      });
   }
 
   function stopClock(game) {
@@ -227,6 +299,9 @@ function createChessServer(options = {}) {
     game.termination = termination;
     game.drawOffer = null;
     game.rematchOffers.clear();
+    Promise.resolve(store.deleteActiveGame(game.roomId)).catch((error) => {
+      console.error(`Could not remove active game ${game.gameId}:`, error);
+    });
     persistFinishedGame(game);
     return true;
   }
@@ -302,11 +377,122 @@ function createChessServer(options = {}) {
     };
   }
 
+  const restoreReady = store.ready.then(async () => {
+    const activeGames = await store.getActiveGames();
+    for (const snapshot of activeGames) {
+      if (games.has(snapshot.roomId)) continue;
+      const game = newGame(
+        snapshot.roomId,
+        snapshot.players.w ? { ...snapshot.players.w, socketId: null } : null,
+        snapshot.players.b ? { ...snapshot.players.b, socketId: null } : null,
+        snapshot.timeControl,
+      );
+      game.gameId = snapshot.gameId;
+      game.createdAt = snapshot.createdAt;
+      game.playerNames = snapshot.playerNames;
+      game.result = snapshot.result;
+      game.termination = snapshot.termination;
+      game.drawOffer = snapshot.drawOffer;
+      game.rematchOffers = new Set(snapshot.rematchOffers || []);
+      game.chess.load_pgn(snapshot.pgn || '');
+      game.clock.remainingMs = {
+        w: snapshot.clock.whiteMs,
+        b: snapshot.clock.blackMs,
+      };
+      game.clock.deadlineAt = null;
+      game.clock.timer = null;
+      games.set(game.roomId, game);
+    }
+  });
+
   app.get('/health', (_request, response) => {
     response.json({ status: 'ok' });
   });
+  app.get('/ready', async (_request, response) => {
+    try {
+      await store.ready;
+      response.json({ status: 'ready', database: 'ok' });
+    } catch (error) {
+      console.error('Readiness check failed:', error);
+      response.status(503).json({ status: 'not_ready', database: 'unavailable' });
+    }
+  });
 
-  app.get('/api/games', (request, response) => {
+  app.post('/api/auth/signup', async (request, response) => {
+    const { email, name, password } = request.body || {};
+    if (
+      typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+      || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 24
+      || typeof password !== 'string' || password.length < 8
+    ) {
+      response.status(400).json({ error: 'Provide a valid email, a 1-24 character name, and a password of at least 8 characters.' });
+      return;
+    }
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (await store.getUserByEmail(normalizedEmail)) {
+        response.status(409).json({ error: 'An account with that email already exists.' });
+        return;
+      }
+      const user = {
+        userId: crypto.randomUUID(),
+        email: normalizedEmail,
+        name: name.trim(),
+        passwordHash: await hashPassword(password),
+        createdAt: new Date().toISOString(),
+      };
+      await store.createUser(user);
+      response.status(201).json({
+        user: { userId: user.userId, email: user.email, name: user.name },
+        token: createAuthToken(user),
+      });
+    } catch (error) {
+      if (error?.code === 11000 || error?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        response.status(409).json({ error: 'An account with that email already exists.' });
+        return;
+      }
+      console.error('Could not create account:', error);
+      response.status(503).json({ error: 'Account service is temporarily unavailable.' });
+    }
+  });
+
+  app.post('/api/auth/login', async (request, response) => {
+    const { email, password } = request.body || {};
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      response.status(400).json({ error: 'Email and password are required.' });
+      return;
+    }
+    try {
+      const user = await store.getUserByEmail(email.trim().toLowerCase());
+      if (!user || !(await verifyPassword(password, user.passwordHash))) {
+        response.status(401).json({ error: 'Email or password is incorrect.' });
+        return;
+      }
+      response.json({
+        user: { userId: user.userId, email: user.email, name: user.name },
+        token: createAuthToken(user),
+      });
+    } catch (error) {
+      console.error('Could not authenticate account:', error);
+      response.status(503).json({ error: 'Account service is temporarily unavailable.' });
+    }
+  });
+
+  app.get('/api/auth/me', async (request, response) => {
+    const user = readAuthToken(request.headers.authorization?.replace(/^Bearer\s+/i, ''));
+    if (!user) {
+      response.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+    const currentUser = await store.getUserById(user.userId);
+    if (!currentUser) {
+      response.status(401).json({ error: 'Account no longer exists.' });
+      return;
+    }
+    response.json({ user: currentUser });
+  });
+
+  app.get('/api/games', async (request, response) => {
     const { playerId } = request.query;
     const requestedLimit = Number(request.query.limit || 20);
     if (typeof playerId !== 'string' || !PLAYER_ID_PATTERN.test(playerId)) {
@@ -317,24 +503,39 @@ function createChessServer(options = {}) {
       response.status(400).json({ error: 'limit must be a whole number between 1 and 100.' });
       return;
     }
-    response.json({ games: store.getPlayerGames(playerId, requestedLimit) });
-  });
-
-  app.get('/api/games/:gameId', (request, response) => {
-    const game = store.getGame(request.params.gameId);
-    if (!game) {
-      response.status(404).json({ error: 'Completed game not found.' });
-      return;
+    try {
+      response.json({ games: await store.getPlayerGames(playerId, requestedLimit) });
+    } catch (error) {
+      console.error('Could not read player game history:', error);
+      response.status(503).json({ error: 'Game history is temporarily unavailable.' });
     }
-    response.json({ game });
   });
 
-  app.get('/api/players/:playerId/stats', (request, response) => {
+  app.get('/api/games/:gameId', async (request, response) => {
+    try {
+      const game = await store.getGame(request.params.gameId);
+      if (!game) {
+        response.status(404).json({ error: 'Completed game not found.' });
+        return;
+      }
+      response.json({ game });
+    } catch (error) {
+      console.error('Could not read completed game:', error);
+      response.status(503).json({ error: 'Game data is temporarily unavailable.' });
+    }
+  });
+
+  app.get('/api/players/:playerId/stats', async (request, response) => {
     if (!PLAYER_ID_PATTERN.test(request.params.playerId)) {
       response.status(400).json({ error: 'Player ID must be 8-64 letters, numbers, underscores, or hyphens.' });
       return;
     }
-    response.json({ stats: store.getPlayerStats(request.params.playerId) });
+    try {
+      response.json({ stats: await store.getPlayerStats(request.params.playerId) });
+    } catch (error) {
+      console.error('Could not read player statistics:', error);
+      response.status(503).json({ error: 'Player statistics are temporarily unavailable.' });
+    }
   });
 
   io.on('connection', (socket) => {
@@ -366,7 +567,9 @@ function createChessServer(options = {}) {
         respond(socket, acknowledgement, 'createGame', { ok: false, error: timeControl.error });
         return;
       }
-      const identity = parseIdentity(payload, 'w');
+      const identity = parseIdentity(socket.user
+        ? { ...payload, playerId: socket.user.userId, name: socket.user.name }
+        : payload, 'w');
       if (identity.error) {
         respond(socket, acknowledgement, 'createGame', { ok: false, error: identity.error });
         return;
@@ -379,7 +582,7 @@ function createChessServer(options = {}) {
 
       const state = gameState(game);
       respond(socket, acknowledgement, 'createGame', { ok: true, roomId, color: 'w', state });
-      socket.emit('gameState', state);
+      emitGameState(game);
     });
 
     socket.on('joinGame', async (payload = {}, acknowledgement) => {
@@ -402,7 +605,7 @@ function createChessServer(options = {}) {
         respond(socket, acknowledgement, 'joinGame', { ok: false, error: 'Game not found.' });
         return;
       }
-      if (game.result || game.players.b) {
+      if (game.result) {
         respond(socket, acknowledgement, 'joinGame', {
           ok: false,
           error: 'That game is full or has already ended.',
@@ -410,9 +613,31 @@ function createChessServer(options = {}) {
         return;
       }
 
-      const identity = parseIdentity(payload, 'b');
+      const identity = parseIdentity(socket.user
+        ? { ...payload, playerId: socket.user.userId, name: socket.user.name }
+        : payload, 'b');
       if (identity.error) {
         respond(socket, acknowledgement, 'joinGame', { ok: false, error: identity.error });
+        return;
+      }
+      const reconnectColor = identity.playerId
+        ? ['w', 'b'].find((color) => game.players[color]?.playerId === identity.playerId && !game.players[color].socketId)
+        : null;
+      if (reconnectColor) {
+        game.players[reconnectColor].socketId = socket.id;
+        playerGames.set(socket.id, { roomId, color: reconnectColor });
+        await socket.join(roomId);
+        if (game.players.w?.socketId && game.players.b?.socketId) startClock(game);
+        const state = gameState(game);
+        respond(socket, acknowledgement, 'joinGame', { ok: true, roomId, color: reconnectColor, state, reconnected: true });
+        emitGameState(game);
+        return;
+      }
+      if (game.players.b) {
+        respond(socket, acknowledgement, 'joinGame', {
+          ok: false,
+          error: 'That game is full or has already ended.',
+        });
         return;
       }
       if (identity.playerId && identity.playerId === game.players.w.playerId) {
@@ -806,6 +1031,7 @@ function createChessServer(options = {}) {
     io,
     games,
     store,
+    ready: restoreReady,
     close: async () => {
       if (closed) return;
       closed = true;
@@ -816,7 +1042,7 @@ function createChessServer(options = {}) {
           else resolve();
         });
       });
-      store.close();
+      await Promise.resolve(store.close());
     },
   };
 }
@@ -824,9 +1050,16 @@ function createChessServer(options = {}) {
 if (require.main === module) {
   const service = createChessServer();
   const port = Number(process.env.PORT) || 3000;
-  service.httpServer.listen(port, () => {
-    console.log(`Chess backend listening on port ${port}`);
-  });
+  service.ready
+    .then(() => {
+      service.httpServer.listen(port, () => {
+        console.log(`Chess backend listening on port ${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error('Could not connect to MongoDB:', error);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = { createChessServer };

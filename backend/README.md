@@ -13,9 +13,17 @@ npm start
 
 Open `http://localhost:3000` to load the frontend served by the backend. The server listens on port `3000` by default; set `PORT` to change it. Socket.IO and HTTP APIs accept any origin by default; set `CORS_ORIGIN` to a comma-separated list of allowed origins for deployment.
 
-SQLite data is stored in `backend/data/chess.sqlite` by default. Set `DB_PATH` to choose another file. Completed games and stats persist across server restarts; live games and active sockets do not. `GET /health` returns `{ "status": "ok" }`.
+The backend connects to MongoDB at `mongodb://127.0.0.1:27017` by default and uses the `house_chess` database. Set `MONGODB_URI` and `MONGODB_DATABASE` to change those values. Completed games and stats are stored in the `games` and `playerStats` collections and persist across server restarts; live games and active sockets do not. `GET /health` returns `{ "status": "ok" }`.
 
-Run `npm test` for the backend integration tests. Node.js 20 or newer is required.
+The MongoDB setup follows the guide's `MongoClient` flow: install MongoDB as a Windows service, verify the service with `mongosh mongodb://127.0.0.1:27017`, and start the backend with `npm start`. The server prints a successful MongoDB connection message before listening on port 3000. Use `GET /ready` to verify the database is reachable.
+
+Accounts are available through `POST /api/auth/signup`, `POST /api/auth/login`, and `GET /api/auth/me`. Passwords are hashed with PBKDF2 and socket connections can use the returned bearer token. In production, set a strong `AUTH_SECRET`, restrict `CORS_ORIGIN`, and enable MongoDB access control.
+
+Active rooms are also stored in the `activeGames` collection. On restart, board positions and clocks are restored; players reconnect using the same authenticated account or player ID and rejoin their seat.
+
+To migrate the existing SQLite database, set `DB_PATH`, `MONGODB_URI`, and `MONGODB_DATABASE`, then run `npm run migrate:mongodb`. The migration is duplicate-safe and does not modify the SQLite file.
+
+Run `npm test` for the backend integration tests. Node.js 20 or newer is required. The tests pass an explicit temporary SQLite path for isolation; production startup uses MongoDB.
 
 ## Socket.IO integration
 

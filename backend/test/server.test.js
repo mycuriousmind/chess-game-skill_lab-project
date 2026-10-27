@@ -277,3 +277,42 @@ test('the backend serves the frontend and its Socket.IO browser client', async (
   assert.equal(socketClientResponse.status, 200);
   assert.match(await socketClientResponse.text(), /Socket\.IO/);
 });
+
+test('readiness and account authentication APIs work', async () => {
+  const { url } = await createService();
+  const readyResponse = await fetch(`${url}/ready`);
+  assert.equal(readyResponse.status, 200);
+  assert.deepEqual(await readyResponse.json(), { status: 'ready', database: 'ok' });
+
+  const email = 'account@example.test';
+  const signupResponse = await fetch(`${url}/api/auth/signup`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, name: 'Account Player', password: 'password-123' }),
+  });
+  assert.equal(signupResponse.status, 201);
+  const signup = await signupResponse.json();
+  assert.equal(signup.user.name, 'Account Player');
+  assert.equal(typeof signup.token, 'string');
+
+  const meResponse = await fetch(`${url}/api/auth/me`, {
+    headers: { authorization: `Bearer ${signup.token}` },
+  });
+  assert.equal(meResponse.status, 200);
+  assert.equal((await meResponse.json()).user.email, email);
+
+  const loginResponse = await fetch(`${url}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password: 'password-123' }),
+  });
+  assert.equal(loginResponse.status, 200);
+  assert.equal((await loginResponse.json()).user.userId, signup.user.userId);
+
+  const invalidLogin = await fetch(`${url}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password: 'wrong-password' }),
+  });
+  assert.equal(invalidLogin.status, 401);
+});

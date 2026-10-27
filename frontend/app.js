@@ -38,6 +38,7 @@
   let rematchRequested = false;
   let playerName = localStorage.getItem("housePlayerName") || "Guest";
   let playerId = localStorage.getItem("housePlayerId");
+  let authToken = localStorage.getItem("houseAuthToken");
 
   if (!playerId) {
     playerId = typeof crypto.randomUUID === "function"
@@ -223,7 +224,7 @@
 
   function initializeSocket() {
     if (socket || typeof window.io !== "function") return;
-    socket = window.io();
+    socket = window.io({ auth: { token: authToken } });
     socket.on("connect", () => {
       socketReady = true;
       setConnectionStatus("Server connected", true);
@@ -251,6 +252,97 @@
         sendSocketEvent("respondDraw", { roomId: currentRoomId, accept: true });
       } else {
         sendSocketEvent("respondDraw", { roomId: currentRoomId, accept: false });
+      }
+
+      async function submitAccount(path, payload) {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Account request failed.");
+        authToken = data.token;
+        playerId = data.user.userId;
+        playerName = data.user.name;
+        localStorage.setItem("houseAuthToken", authToken);
+        localStorage.setItem("housePlayerId", playerId);
+        localStorage.setItem("housePlayerName", playerName);
+        document.querySelector("#accountButton .account-copy strong").textContent = playerName;
+        document.querySelector("#accountButton .account-copy span").textContent = data.user.email;
+        if (socket) {
+          socket.auth = { token: authToken };
+          if (socket.connected) socket.disconnect();
+          socket.connect();
+        }
+        return data.user;
+      }
+
+      async function loadAccountViews() {
+        if (!authToken || !playerId) return;
+        try {
+          const headers = { Authorization: `Bearer ${authToken}` };
+          const [meResponse, statsResponse, gamesResponse] = await Promise.all([
+            fetch("/api/auth/me", { headers }),
+            fetch(`/api/players/${encodeURIComponent(playerId)}/stats`),
+            fetch(`/api/games?playerId=${encodeURIComponent(playerId)}&limit=20`),
+          ]);
+          if (!meResponse.ok) throw new Error("Your session has expired. Please log in again.");
+          const me = await meResponse.json();
+          const stats = await statsResponse.json();
+          const history = await gamesResponse.json();
+          playerName = me.user.name;
+          document.querySelector("#accountButton .account-copy strong").textContent = playerName;
+          document.querySelector("#accountButton .account-copy span").textContent = me.user.email;
+          const profileCard = document.querySelector("#profileCard");
+          const avatar = document.createElement("span");
+          avatar.className = "avatar profile-avatar";
+          avatar.textContent = playerName.slice(0, 1).toUpperCase();
+          const profileBody = document.createElement("div");
+          const label = document.createElement("span");
+          label.className = "card-kicker";
+          label.textContent = "SIGNED IN";
+          const heading = document.createElement("h2");
+          heading.textContent = playerName;
+          const summary = document.createElement("p");
+          summary.textContent = `${stats.stats.gamesPlayed} games · ${stats.stats.wins} wins · ${stats.stats.losses} losses · ${stats.stats.draws} draws`;
+          const logoutButton = document.createElement("button");
+          logoutButton.className = "secondary-button";
+          logoutButton.id = "logoutButton";
+          logoutButton.textContent = "Log out";
+          profileBody.append(label, heading, summary, logoutButton);
+          profileCard.replaceChildren(avatar, profileBody);
+          logoutButton.addEventListener("click", logout);
+          renderHistory(history.games);
+        } catch (error) {
+          showToast(error.message);
+          logout(false);
+        }
+      }
+
+      function renderHistory(games) {
+        const card = document.getElementById("historyCard");
+        if (!games || games.length === 0) return;
+        card.replaceChildren();
+        const title = document.createElement("h2");
+        title.textContent = "Your completed games";
+        card.appendChild(title);
+        for (const record of games) {
+          const row = document.createElement("p");
+          row.textContent = `${record.whiteName} vs ${record.blackName} · ${record.result} · ${record.termination}`;
+          card.appendChild(row);
+        }
+      }
+
+      function logout(showMessage = true) {
+        authToken = null;
+        localStorage.removeItem("houseAuthToken");
+        if (socket) {
+          socket.auth = { token: null };
+          if (socket.connected) socket.disconnect();
+        }
+        if (showMessage) showToast("You have been logged out.");
+        window.location.reload();
       }
     });
     socket.on("drawAccepted", () => showToast("Draw agreed."));
@@ -645,6 +737,7 @@
     document.getElementById("pageTitle").textContent = selected ? selected.textContent.trim().replace(/\s+NEW$/, "") : "Play";
     document.getElementById("sidebar").classList.remove("open");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (viewName === "games" || viewName === "profile") loadAccountViews();
   }
 
   function openSignup() {
@@ -784,20 +877,33 @@
       document.getElementById("sidebar").classList.remove("open");
     }
   });
-  document.getElementById("signupForm").addEventListener("submit", event => {
+  document.getElementById("signupForm").addEventListener("submit", async event => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    playerName = String(formData.get("playerName")).trim();
-    localStorage.setItem("housePlayerName", playerName);
-    document.querySelector("#accountButton .account-copy strong").textContent = playerName;
-    document.querySelector("#accountButton .account-copy span").textContent = "Guest player";
-    document.getElementById("formMessage").textContent = "Your display name has been saved on this device. Account sign-up is not enabled yet.";
-    closeModal();
-    showToast(`You’ll play online as ${playerName}.`);
+    try {
+      await submitAccount("/api/auth/signup", {
+        name: String(formData.get("playerName")).trim(),
+        email: String(formData.get("playerEmail")).trim(),
+        password: String(formData.get("playerPassword")),
+      });
+      document.getElementById("formMessage").textContent = "Account created.";
+      closeModal();
+      showToast(`Welcome, ${playerName}.`);
+    } catch (error) {
+      document.getElementById("formMessage").textContent = error.message;
+    }
   });
-  document.getElementById("loginLink").addEventListener("click", () => {
-    emitBackendEvent("login-request", {});
-    document.getElementById("formMessage").textContent = "Connect this form to your login API to sign in.";
+  document.getElementById("loginLink").addEventListener("click", async () => {
+    const email = window.prompt("Email address");
+    const password = window.prompt("Password");
+    if (!email || !password) return;
+    try {
+      await submitAccount("/api/auth/login", { email, password });
+      closeModal();
+      showToast(`Welcome back, ${playerName}.`);
+    } catch (error) {
+      document.getElementById("formMessage").textContent = error.message;
+    }
   });
   document.querySelectorAll(".coming-soon").forEach(button => button.addEventListener("click", () => showToast(`${button.dataset.feature} will be available soon.`)));
 
@@ -811,4 +917,5 @@
   document.getElementById("backendConnectionStatus").lastChild.textContent = " Connecting…";
   initializeSocket();
   if (!socket) setConnectionStatus("Socket.IO client did not load");
+  loadAccountViews();
 })();
