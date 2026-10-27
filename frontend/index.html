@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f6f5f2">
+  <meta name="description" content="A welcoming place to play chess, review your games, and build better habits.">
+  <title>House — Chess, played your way</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#" aria-label="House home">
+        <span class="brand-mark">♞</span>
+        <span>house<span class="brand-period">.</span></span>
+      </a>
+
+      <div class="sidebar-label">PLAY</div>
+      <nav class="main-nav" aria-label="Main navigation">
+        <button class="nav-link active" data-view="play"><span class="nav-icon">♟</span> Play <span class="nav-shortcut">⌘1</span></button>
+        <button class="nav-link" data-view="learn"><span class="nav-icon">✳</span> Learn</button>
+        <button class="nav-link" data-view="games"><span class="nav-icon">◷</span> Games</button>
+      </nav>
+
+      <div class="sidebar-label library-label">YOUR SPACE</div>
+      <nav class="main-nav" aria-label="Your space">
+        <button class="nav-link" data-view="insights"><span class="nav-icon">◫</span> Insights <span class="nav-new">NEW</span></button>
+        <button class="nav-link" data-view="profile"><span class="nav-icon">◎</span> Profile</button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="streak-card">
+          <div class="streak-icon">✦</div>
+          <div><strong>Make it a daily thing</strong><span>One game is all it takes.</span></div>
+          <span class="streak-arrow">↗</span>
+        </div>
+        <button class="account-button" id="accountButton">
+          <span class="avatar guest-avatar">G</span>
+          <span class="account-copy"><strong>Guest player</strong><span>Create your account</span></span>
+          <span class="account-more">···</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="mobile-menu" id="mobileMenu" aria-label="Open menu">☰</button>
+        <div class="breadcrumb"><span>Home</span><span class="crumb-slash">/</span><strong id="pageTitle">Play</strong></div>
+        <div class="topbar-actions">
+          <span class="online-status"><i></i> 2,481 playing</span>
+          <button class="icon-button" id="settingsButton" aria-label="Settings" title="Settings">⚙</button>
+          <button class="top-signup" id="topSignup">Sign up <span>↗</span></button>
+        </div>
+      </header>
+
+      <section class="view-panel active" id="playView">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span> YOUR NEXT MOVE</div>
+            <h1>A little chess<br class="mobile-break"> goes a long way<span class="heading-dot">.</span></h1>
+            <p class="heading-subtitle">A good game is closer than you think.</p>
+          </div>
+          <div class="heading-decoration" aria-hidden="true"><span>♞</span><i></i><i></i><i></i></div>
+        </div>
+
+        <div class="play-layout">
+          <section class="board-column" aria-label="Chess game">
+            <div class="game-topline">
+              <div class="opponent-summary">
+                <span class="avatar opponent-avatar">♜</span>
+                <div><strong id="opponentName">Waiting for a player</strong><span id="opponentRating">Choose how you’d like to play</span></div>
+              </div>
+              <div class="game-menu-wrap">
+                <button class="icon-button game-menu-button" id="gameMenuButton" aria-label="More game options">···</button>
+                <div class="popover hidden" id="gameMenu">
+                  <button id="copyFen">Copy position (FEN)</button>
+                  <button id="copyPgn">Copy game (PGN)</button>
+                  <button id="reportOpponent">Report or block player</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="clock clock-top" id="blackClock"><span class="clock-dot"></span><span class="clock-name">Opponent</span><strong>10:00</strong></div>
+            <div class="board-frame">
+              <div class="rank-labels" id="rankLabels" aria-hidden="true"></div>
+              <div class="chessboard" id="chessboard" role="grid" aria-label="Interactive chessboard"></div>
+              <div class="file-labels" id="fileLabels" aria-hidden="true"></div>
+            </div>
+            <div class="clock clock-bottom active-clock" id="whiteClock"><span class="clock-dot"></span><span class="clock-name">You · White</span><strong>10:00</strong></div>
+
+            <div class="game-toolbar">
+              <div class="move-count"><span class="move-count-icon">↔</span><span id="moveCount">Move 1</span><span class="move-count-divider">·</span><span id="turnLabel">White to move</span></div>
+              <div class="board-actions">
+                <button class="board-action" id="flipBoard" title="Flip board" aria-label="Flip board">↕</button>
+                <button class="board-action" id="resignButton" title="Resign">⚑ <span>Resign</span></button>
+                <button class="board-action" id="drawButton" title="Offer a draw">⤳ <span>Draw</span></button>
+              </div>
+            </div>
+            <div class="game-feedback" id="gameFeedback" aria-live="polite"></div>
+          </section>
+
+          <aside class="play-panel">
+            <div class="panel-tabs" role="tablist">
+              <button class="panel-tab active" data-tab="newGame" role="tab">New game</button>
+              <button class="panel-tab" data-tab="moves" role="tab">Moves <span class="move-tab-count" id="moveTabCount">0</span></button>
+            </div>
+            <div class="tab-content active" id="newGameTab">
+              <div class="panel-intro"><span class="panel-icon">✦</span><div><h2>Find your game</h2><p>Pick a pace that feels right.</p></div></div>
+              <div class="time-controls" role="group" aria-label="Choose a time control">
+                <button class="time-option" data-time="bullet"><span class="time-icon">ϟ</span><span><strong>Bullet</strong><small>1 + 0</small></span></button>
+                <button class="time-option active" data-time="blitz"><span class="time-icon">◷</span><span><strong>Blitz</strong><small>5 + 0</small></span></button>
+                <button class="time-option" data-time="rapid"><span class="time-icon">◴</span><span><strong>Rapid</strong><small>10 + 0</small></span></button>
+              </div>
+              <div class="matchmaking-card">
+                <div class="matchmaking-top"><span class="matchmaking-icon">♞</span><div><strong>Play online</strong><span>Find a real opponent</span></div></div>
+                <button class="primary-button" id="findGameButton">Find a game <span>→</span></button>
+                <p class="backend-note">Online play connects when the server is ready.</p>
+              </div>
+              <button class="secondary-button" id="playComputerButton"><span>♟</span> Play a local game</button>
+              <div class="panel-divider"><span>OR</span></div>
+              <button class="friend-button" id="inviteButton"><span>↗</span> Invite a friend <span class="friend-arrow">→</span></button>
+              <div class="rating-note"><span class="rating-star">✳</span><p>New here? No pressure. Your first games help find your level.</p></div>
+            </div>
+            <div class="tab-content moves-content" id="movesTab">
+              <div class="moves-heading"><div><h2>Move history</h2><p>Every game has a story.</p></div><button class="text-button" id="exportPgn">Export PGN ↗</button></div>
+              <ol class="move-list" id="moveList"><li class="empty-moves">Your moves will show up here.</li></ol>
+              <div class="position-status" id="positionStatus"><span class="status-pip"></span> Ready when you are</div>
+            </div>
+            <div class="panel-footer"><span class="fair-play-icon">♧</span> Play fair. Have fun.</div>
+          </aside>
+        </div>
+
+        <div class="below-board">
+          <div class="daily-card">
+            <div class="daily-icon">✷</div>
+            <div class="daily-copy"><span class="card-kicker">A SMALL DAILY WIN</span><strong>Build your chess habit</strong><p>Play one game today and keep your streak alive.</p></div>
+            <div class="daily-progress"><strong>0<span>/1</span></strong><span>games today</span><div class="progress-track"><i></i></div></div>
+            <span class="daily-sparkle">✳</span>
+          </div>
+          <div class="quick-note"><span>♧</span> Your games, your pace. No pressure to be perfect.</div>
+        </div>
+      </section>
+
+      <section class="view-panel secondary-view" id="learnView">
+        <div class="eyebrow"><span class="eyebrow-line"></span> GET A LITTLE BETTER</div><h1>Learn at your<br>own pace<span class="heading-dot">.</span></h1><p class="heading-subtitle">Small lessons. Stronger instincts.</p>
+        <div class="feature-grid">
+          <article class="feature-card lesson-card"><span class="feature-icon">♞</span><span class="card-kicker">5 MIN · BEGINNER</span><h2>Meet the pieces</h2><p>Learn how each piece moves and start seeing the board in a new way.</p><button class="secondary-button coming-soon" data-feature="Interactive lessons">Start learning <span>→</span></button></article>
+          <article class="feature-card lesson-card"><span class="feature-icon">✳</span><span class="card-kicker">DAILY PUZZLE</span><h2>One move ahead</h2><p>A fresh little challenge to wake up your chess brain.</p><button class="secondary-button coming-soon" data-feature="Daily puzzles">Try today's puzzle <span>→</span></button></article>
+          <article class="feature-card lesson-card"><span class="feature-icon">◫</span><span class="card-kicker">YOUR PERSONAL COACH</span><h2>Learn from your games</h2><p>Understand key moments with thoughtful, plain-language feedback.</p><button class="secondary-button" data-view-link="insights">Explore insights <span>→</span></button></article>
+        </div>
+        <div class="daily-card learning-daily"><div class="daily-icon">✷</div><div class="daily-copy"><span class="card-kicker">YOUR DAILY GOAL</span><strong>A little practice adds up</strong><p>Play a game or solve a puzzle to complete today's goal.</p></div><div class="daily-progress"><strong>0<span>/1</span></strong><span>activities today</span><div class="progress-track"><i></i></div></div></div>
+      </section>
+
+      <section class="view-panel secondary-view" id="gamesView">
+        <div class="eyebrow"><span class="eyebrow-line"></span> YOUR CHESS JOURNEY</div><h1>Every game<br>gets you somewhere<span class="heading-dot">.</span></h1><p class="heading-subtitle">Look back, learn something, play again.</p>
+        <div class="history-card"><div class="empty-state-icon">◷</div><h2>Your story starts with a game</h2><p>Finished games and downloadable PGNs will live here. Play your first game and make it yours.</p><button class="primary-button" data-view-link="play">Play your first game <span>→</span></button></div>
+      </section>
+
+      <section class="view-panel secondary-view" id="insightsView">
+        <div class="eyebrow"><span class="eyebrow-line"></span> YOUR PERSONAL CHESS COACH</div><h1>See your game<br>a little differently<span class="heading-dot">.</span></h1><p class="heading-subtitle">Clarity over engine jargon. Progress over perfection.</p>
+        <div class="insights-grid">
+          <article class="insight-card analysis-card"><span class="feature-icon">✳</span><span class="card-kicker">POST-GAME REVIEW</span><h2>Understand the turning points</h2><p>Review key moments with Stockfish analysis and plain-language explanations of what changed and why.</p><div class="insight-placeholder"><span>♙</span><div><strong>Your next game is your first lesson.</strong><small>Game analysis appears after a completed game.</small></div></div></article>
+          <article class="insight-card"><span class="feature-icon">◫</span><span class="card-kicker">PATTERNS, NOT JUDGMENT</span><h2>Your chess, in focus</h2><p>Spot your strengths and the habits worth working on next.</p><div class="weakness-row"><span>Opening confidence</span><span class="weakness-meter"><i></i></span><b>—</b></div><div class="weakness-row"><span>Piece safety</span><span class="weakness-meter"><i></i></span><b>—</b></div><div class="weakness-row"><span>Endgame calm</span><span class="weakness-meter"><i></i></span><b>—</b></div></article>
+        </div>
+        <div class="daily-card learning-daily"><div class="daily-icon">✷</div><div class="daily-copy"><span class="card-kicker">DAILY GOAL</span><strong>Consistency beats intensity</strong><p>Your progress fills in one thoughtful game or puzzle at a time.</p></div><div class="daily-progress"><strong>0<span>/1</span></strong><span>activities today</span><div class="progress-track"><i></i></div></div></div>
+      </section>
+
+      <section class="view-panel secondary-view" id="profileView">
+        <div class="eyebrow"><span class="eyebrow-line"></span> YOUR SPACE</div><h1>Make yourself<br>at home<span class="heading-dot">.</span></h1><p class="heading-subtitle">A little profile makes your games feel more like yours.</p>
+        <div class="profile-card"><span class="avatar profile-avatar">G</span><div><span class="card-kicker">PLAYING AS A GUEST</span><h2>Your chess profile is waiting</h2><p>Save your rating, game history, settings, and daily progress with a free account.</p><button class="primary-button" id="profileSignup">Create a free account <span>→</span></button></div></div>
+        <div class="settings-card"><div><span class="feature-icon">⚙</span><div><h2>Game preferences</h2><p>Choose your time control and board orientation while you play.</p></div></div><button class="secondary-button" data-view-link="play">Go to the board <span>→</span></button></div>
+      </section>
+      <footer class="site-footer"><span>Made for the love of the game.</span><span>Take your time. ♞</span></footer>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modalBackdrop" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button class="modal-close" id="modalClose" aria-label="Close dialog">×</button>
+      <span class="modal-mark">♞</span><div class="eyebrow"><span class="eyebrow-line"></span> A PLACE AT THE BOARD</div>
+      <h2 id="modalTitle">Your chess, your way.</h2><p id="modalDescription">Create a free account to save your games, keep your progress, and find your people.</p>
+      <form id="signupForm"><label for="playerName">What should we call you?</label><input id="playerName" name="playerName" type="text" placeholder="Your name" autocomplete="nickname" required maxlength="24"><label for="playerEmail">Email address</label><input id="playerEmail" name="playerEmail" type="email" placeholder="you@example.com" autocomplete="email" required><label for="playerPassword">Password</label><input id="playerPassword" name="playerPassword" type="password" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required><button class="primary-button modal-submit" type="submit">Create account <span>→</span></button><p class="form-message" id="formMessage">This demo form is ready to connect to your account API.</p></form>
+      <div class="modal-bottom">Already have an account? <button id="loginLink">Log in</button></div>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
