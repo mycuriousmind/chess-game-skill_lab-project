@@ -11,7 +11,7 @@ npm install
 npm start
 ```
 
-The server listens on port `3000` by default. Set `PORT` to change it. Socket.IO and HTTP APIs accept any origin by default; set `CORS_ORIGIN` to a comma-separated list of allowed origins for deployment.
+Open `http://localhost:3000` to load the frontend served by the backend. The server listens on port `3000` by default; set `PORT` to change it. Socket.IO and HTTP APIs accept any origin by default; set `CORS_ORIGIN` to a comma-separated list of allowed origins for deployment.
 
 SQLite data is stored in `backend/data/chess.sqlite` by default. Set `DB_PATH` to choose another file. Completed games and stats persist across server restarts; live games and active sockets do not. `GET /health` returns `{ "status": "ok" }`.
 

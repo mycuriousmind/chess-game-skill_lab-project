@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js" defer></script>
+  <script src="/socket.io/socket.io.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -40,6 +41,15 @@
           <div><strong>Make it a daily thing</strong><span>One game is all it takes.</span></div>
           <span class="streak-arrow">↗</span>
         </div>
+        <div class="tab-content chat-content" id="chatTab">
+          <div class="moves-heading"><div><h2>Game chat</h2><p id="chatStatus">Join a game to chat.</p></div></div>
+          <ol class="chat-messages" id="chatMessages" aria-live="polite"><li class="chat-empty">Join a game to see its messages.</li></ol>
+          <form class="chat-form" id="chatForm">
+            <label class="sr-only" for="chatInput">Message</label>
+            <input id="chatInput" maxlength="500" placeholder="Write a message…" autocomplete="off">
+            <button class="primary-button" type="submit" aria-label="Send message">Send</button>
+          </form>
+        </div>
         <button class="account-button" id="accountButton">
           <span class="avatar guest-avatar">G</span>
           <span class="account-copy"><strong>Guest player</strong><span>Create your account</span></span>
@@ -53,7 +63,7 @@
         <button class="mobile-menu" id="mobileMenu" aria-label="Open menu">☰</button>
         <div class="breadcrumb"><span>Home</span><span class="crumb-slash">/</span><strong id="pageTitle">Play</strong></div>
         <div class="topbar-actions">
-          <span class="online-status"><i></i> 2,481 playing</span>
+          <span class="online-status" id="backendConnectionStatus"><i></i> Connecting…</span>
           <button class="icon-button" id="settingsButton" aria-label="Settings" title="Settings">⚙</button>
           <button class="top-signup" id="topSignup">Sign up <span>↗</span></button>
         </div>
@@ -100,6 +110,7 @@
                 <button class="board-action" id="flipBoard" title="Flip board" aria-label="Flip board">↕</button>
                 <button class="board-action" id="resignButton" title="Resign">⚑ <span>Resign</span></button>
                 <button class="board-action" id="drawButton" title="Offer a draw">⤳ <span>Draw</span></button>
+                <button class="board-action hidden" id="rematchButton" title="Request rematch">↻ <span>Rematch</span></button>
               </div>
             </div>
             <div class="game-feedback" id="gameFeedback" aria-live="polite"></div>
@@ -109,6 +120,7 @@
             <div class="panel-tabs" role="tablist">
               <button class="panel-tab active" data-tab="newGame" role="tab">New game</button>
               <button class="panel-tab" data-tab="moves" role="tab">Moves <span class="move-tab-count" id="moveTabCount">0</span></button>
+              <button class="panel-tab" data-tab="chat" role="tab">Chat</button>
             </div>
             <div class="tab-content active" id="newGameTab">
               <div class="panel-intro"><span class="panel-icon">✦</span><div><h2>Find your game</h2><p>Pick a pace that feels right.</p></div></div>
@@ -119,12 +131,18 @@
               </div>
               <div class="matchmaking-card">
                 <div class="matchmaking-top"><span class="matchmaking-icon">♞</span><div><strong>Play online</strong><span>Find a real opponent</span></div></div>
-                <button class="primary-button" id="findGameButton">Find a game <span>→</span></button>
-                <p class="backend-note">Online play connects when the server is ready.</p>
+                <button class="primary-button" id="findGameButton">Create a game <span>→</span></button>
+                <p class="backend-note" id="backendNote">Connecting to the chess server…</p>
+                <div class="room-controls">
+                  <label class="sr-only" for="roomIdInput">Room code</label>
+                  <input id="roomIdInput" maxlength="24" placeholder="Enter a room code" autocomplete="off">
+                  <button class="secondary-button" id="joinGameButton">Join</button>
+                </div>
+                <button class="text-button watch-button" id="watchGameButton">Watch this game</button>
               </div>
               <button class="secondary-button" id="playComputerButton"><span>♟</span> Play a local game</button>
               <div class="panel-divider"><span>OR</span></div>
-              <button class="friend-button" id="inviteButton"><span>↗</span> Invite a friend <span class="friend-arrow">→</span></button>
+              <button class="friend-button" id="inviteButton"><span>↗</span> Create & invite a friend <span class="friend-arrow">→</span></button>
               <div class="rating-note"><span class="rating-star">✳</span><p>New here? No pressure. Your first games help find your level.</p></div>
             </div>
             <div class="tab-content moves-content" id="movesTab">

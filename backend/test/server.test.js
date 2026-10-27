@@ -260,3 +260,20 @@ test('a clock expiring ends the game and invalid clock controls are rejected', a
   assert.equal(game.result, '0-1');
   assert.equal(game.termination, 'timeout');
 });
+
+test('the backend serves the frontend and its Socket.IO browser client', async () => {
+  const { url } = await createService();
+  const pageResponse = await fetch(url);
+  assert.equal(pageResponse.status, 200);
+  const pageHtml = await pageResponse.text();
+  assert.match(pageHtml, /House — Chess, played your way/);
+  assert.match(pageHtml, /src="\/socket\.io\/socket\.io\.js"/);
+
+  const frontendResponse = await fetch(`${url}/app.js`);
+  assert.equal(frontendResponse.status, 200);
+  assert.match(await frontendResponse.text(), /createOnlineGame/);
+
+  const socketClientResponse = await fetch(`${url}/socket.io/socket.io.js`);
+  assert.equal(socketClientResponse.status, 200);
+  assert.match(await socketClientResponse.text(), /Socket\.IO/);
+});

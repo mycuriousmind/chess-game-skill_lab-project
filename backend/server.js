@@ -76,6 +76,7 @@ function makeRoomId(games) {
 function createChessServer(options = {}) {
   const app = express();
   const httpServer = http.createServer(app);
+  const frontendDirectory = path.join(__dirname, '..', 'frontend');
   const allowedOrigins = (process.env.CORS_ORIGIN || '*')
     .split(',')
     .map((origin) => origin.trim())
@@ -92,6 +93,7 @@ function createChessServer(options = {}) {
 
   app.use(cors({ origin: corsOrigin }));
   app.use(express.json({ limit: '16kb' }));
+  app.use(express.static(frontendDirectory));
 
   const io = new Server(httpServer, {
     cors: { origin: corsOrigin },
