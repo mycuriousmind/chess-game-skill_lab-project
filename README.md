@@ -12,13 +12,13 @@ House Chess is a browser-based chess interface with a local two-player game and 
 - Flip the board and export the current position as FEN or moves as PGN.
 - Browse the Learn, Games, Insights, and Profile interface sections.
 
-The Learn, Games, Insights, account, matchmaking, and friend-invite screens are currently demo UI and are not backed by application services. Online matchmaking and invite buttons display a notice because the browser app does not yet connect to the backend.
+The Learn, Games, and Insights screens remain demo UI. Account signup/login, online room creation, invite links, joining, live moves, chat, draw offers, resignations, rematches, and spectators are backed by the Node.js and MongoDB services.
 
 ### Node.js backend
 
 - Create and join multiplayer rooms, play validated chess moves, and watch games.
 - Use server-managed clocks, chat, draw offers, resignations, and rematches.
-- Persist completed games and player statistics in SQLite.
+- Persist completed games and player statistics in MongoDB.
 - Query completed games and player statistics through HTTP APIs.
 
 See the [backend guide](backend/README.md) for Socket.IO event payloads, HTTP endpoints, server settings, and persistence details.
@@ -33,7 +33,9 @@ chess-game-skill_lab-project/
 │   └── style.css        # Responsive layout and visual styling
 └── backend/
     ├── server.js        # Express, Socket.IO, and game-room logic
-    ├── store.js         # SQLite persistence for games and statistics
+    ├── store.js         # MongoDB persistence for games and statistics
+    ├── scripts/
+    │   └── migrate-sqlite-to-mongodb.js
     ├── package.json     # Backend scripts and dependencies
     ├── README.md        # Backend configuration and API reference
     └── test/
@@ -73,10 +75,22 @@ npm run check
 | Environment variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP and Socket.IO server port |
-| `DB_PATH` | `backend/data/chess.sqlite` | SQLite database file |
+| `MONGODB_URI` | `mongodb://127.0.0.1:27017` | MongoDB server connection string |
+| `MONGODB_DATABASE` | `house_chess` | MongoDB database name |
+| `AUTH_SECRET` | development fallback | HMAC secret for account tokens; required in production |
+| `NODE_ENV` | unset | Set to `production` to enable secure startup checks |
 | `CORS_ORIGIN` | `*` | Comma-separated allowed origins; `*` allows any origin |
 
-For deployment, set `CORS_ORIGIN` to the specific origins that should access the backend. The backend persists completed games and stats, but active games and socket connections are in memory and do not survive a restart.
+For local development, install MongoDB as a Windows service as described in the MongoDB guide, then verify it with `mongosh mongodb://127.0.0.1:27017`. Set `CORS_ORIGIN` to the specific origins that should access the backend for deployment. The backend persists completed games and stats in the `games` and `playerStats` collections, but active games and socket connections are in memory and do not survive a restart.
+
+To migrate the existing SQLite records:
+
+```sh
+set DB_PATH=backend\data\chess.sqlite
+set MONGODB_URI=mongodb://127.0.0.1:27017
+set MONGODB_DATABASE=house_chess
+npm run migrate:mongodb
+```
 
 ## Connecting a frontend client
 
@@ -86,4 +100,5 @@ The backend exposes Socket.IO events for real-time games, but `frontend/app.js` 
 
 - Player IDs accepted by the backend are identifiers, not authenticated accounts. Do not use the resulting casual statistics as trusted rankings.
 - Chat is plain text. Any client displaying messages must insert them as text rather than HTML.
-- The frontend signup and login forms are demo UI and do not create or authenticate accounts.
+- Signup and login use the backend account API. Set a strong `AUTH_SECRET` and a restricted `CORS_ORIGIN` before deployment.
+- MongoDB access control is required for production; the unauthenticated localhost service is for development only.

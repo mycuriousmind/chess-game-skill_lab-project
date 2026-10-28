@@ -177,7 +177,7 @@
 
       <section class="view-panel secondary-view" id="gamesView">
         <div class="eyebrow"><span class="eyebrow-line"></span> YOUR CHESS JOURNEY</div><h1>Every game<br>gets you somewhere<span class="heading-dot">.</span></h1><p class="heading-subtitle">Look back, learn something, play again.</p>
-        <div class="history-card"><div class="empty-state-icon">◷</div><h2>Your story starts with a game</h2><p>Finished games and downloadable PGNs will live here. Play your first game and make it yours.</p><button class="primary-button" data-view-link="play">Play your first game <span>→</span></button></div>
+        <div class="history-card" id="historyCard"><div class="empty-state-icon">◷</div><h2>Your story starts with a game</h2><p>Finished games and downloadable PGNs will live here. Play your first game and make it yours.</p><button class="primary-button" data-view-link="play">Play your first game <span>→</span></button></div>
       </section>
 
       <section class="view-panel secondary-view" id="insightsView">
@@ -191,7 +191,7 @@
 
       <section class="view-panel secondary-view" id="profileView">
         <div class="eyebrow"><span class="eyebrow-line"></span> YOUR SPACE</div><h1>Make yourself<br>at home<span class="heading-dot">.</span></h1><p class="heading-subtitle">A little profile makes your games feel more like yours.</p>
-        <div class="profile-card"><span class="avatar profile-avatar">G</span><div><span class="card-kicker">PLAYING AS A GUEST</span><h2>Your chess profile is waiting</h2><p>Save your rating, game history, settings, and daily progress with a free account.</p><button class="primary-button" id="profileSignup">Create a free account <span>→</span></button></div></div>
+        <div class="profile-card" id="profileCard"><span class="avatar profile-avatar">G</span><div><span class="card-kicker">PLAYING AS A GUEST</span><h2>Your chess profile is waiting</h2><p>Save your rating, game history, settings, and daily progress with a free account.</p><button class="primary-button" id="profileSignup">Create a free account <span>→</span></button></div></div>
         <div class="settings-card"><div><span class="feature-icon">⚙</span><div><h2>Game preferences</h2><p>Choose your time control and board orientation while you play.</p></div></div><button class="secondary-button" data-view-link="play">Go to the board <span>→</span></button></div>
       </section>
       <footer class="site-footer"><span>Made for the love of the game.</span><span>Take your time. ♞</span></footer>
@@ -203,7 +203,7 @@
       <button class="modal-close" id="modalClose" aria-label="Close dialog">×</button>
       <span class="modal-mark">♞</span><div class="eyebrow"><span class="eyebrow-line"></span> A PLACE AT THE BOARD</div>
       <h2 id="modalTitle">Your chess, your way.</h2><p id="modalDescription">Create a free account to save your games, keep your progress, and find your people.</p>
-      <form id="signupForm"><label for="playerName">What should we call you?</label><input id="playerName" name="playerName" type="text" placeholder="Your name" autocomplete="nickname" required maxlength="24"><label for="playerEmail">Email address</label><input id="playerEmail" name="playerEmail" type="email" placeholder="you@example.com" autocomplete="email" required><label for="playerPassword">Password</label><input id="playerPassword" name="playerPassword" type="password" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required><button class="primary-button modal-submit" type="submit">Create account <span>→</span></button><p class="form-message" id="formMessage">This demo form is ready to connect to your account API.</p></form>
+      <form id="signupForm"><label for="playerName">What should we call you?</label><input id="playerName" name="playerName" type="text" placeholder="Your name" autocomplete="nickname" required maxlength="24"><label for="playerEmail">Email address</label><input id="playerEmail" name="playerEmail" type="email" placeholder="you@example.com" autocomplete="email" required><label for="playerPassword">Password</label><input id="playerPassword" name="playerPassword" type="password" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required><button class="primary-button modal-submit" type="submit">Create account <span>→</span></button><p class="form-message" id="formMessage">Create an account to use your identity across games.</p></form>
       <div class="modal-bottom">Already have an account? <button id="loginLink">Log in</button></div>
     </section>
   </div>
