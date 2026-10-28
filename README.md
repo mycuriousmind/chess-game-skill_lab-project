@@ -1,89 +1,191 @@
 # House Chess
 
-House Chess is a browser-based chess interface with a local two-player game and a separate Node.js backend for real-time multiplayer chess. The frontend and backend are currently separate: local play works in the browser, while online play requires a client integration with the backend's Socket.IO API.
+House Chess is a browser-based chess app with a local two-player mode and a separate Node.js backend for multiplayer features, persistent game history, and player stats. The frontend and backend are intentionally separate projects inside the same repository.
 
 ## Features
 
 ### Browser frontend
 
-- Play a local game by taking turns on the same device.
+- Play a local game on one device against another player.
 - Choose Bullet (1+0), Blitz (5+0), or Rapid (10+0) time controls.
 - See legal-move hints, the last move, check status, clocks, and move history.
-- Flip the board and export the current position as FEN or moves as PGN.
-- Browse the Learn, Games, Insights, and Profile interface sections.
+- Flip the board and export the current position as FEN or the move list as PGN.
+- Browse the Learn, Games, Insights, and Profile demo screens.
 
-The Learn, Games, and Insights screens remain demo UI. Account signup/login, online room creation, invite links, joining, live moves, chat, draw offers, resignations, rematches, and spectators are backed by the Node.js and MongoDB services.
+The Learn, Games, and Insights screens are demo UI placeholders. Online room creation, matchmaking, account signup/login, live moves, chat, draw offers, resignations, rematches, and spectator support are implemented in the backend.
 
 ### Node.js backend
 
-- Create and join multiplayer rooms, play validated chess moves, and watch games.
-- Use server-managed clocks, chat, draw offers, resignations, and rematches.
+- Create and join multiplayer rooms.
+- Validate moves on the server.
+- Maintain real-time clocks and room state via Socket.IO.
 - Persist completed games and player statistics in MongoDB.
-- Query completed games and player statistics through HTTP APIs.
+- Expose HTTP APIs for game history and player stats.
 
-See the [backend guide](backend/README.md) for Socket.IO event payloads, HTTP endpoints, server settings, and persistence details.
+See the [backend guide](backend/README.md) for the Socket.IO event payloads, HTTP endpoints, server settings, and persistence details.
 
 ## Project layout
 
 ```text
 chess-game-skill_lab-project/
 ├── frontend/
-│   ├── index.html       # Page structure and demo sections
-│   ├── app.js           # Local game behavior and UI interactions
-│   └── style.css        # Responsive layout and visual styling
-└── backend/
-    ├── server.js        # Express, Socket.IO, and game-room logic
-    ├── store.js         # MongoDB persistence for games and statistics
-    ├── scripts/
-    │   └── migrate-sqlite-to-mongodb.js
-    ├── package.json     # Backend scripts and dependencies
-    ├── README.md        # Backend configuration and API reference
-    └── test/
-        └── server.test.js
+│   ├── index.html
+│   ├── app.js
+│   └── style.css
+├── backend/
+│   ├── server.js
+│   ├── store.js
+│   ├── scripts/
+│   │   └── migrate-sqlite-to-mongodb.js
+│   ├── package.json
+│   ├── README.md
+│   └── test/
+│       └── server.test.js
+├── README.md
+└── PRESENTATION_SECURITY_NOTES.md
 ```
 
 ## Requirements
 
-- Node.js 20 or newer and npm to run or test the backend.
-- An internet connection when loading the frontend, which fetches chess.js and web fonts from CDNs.
+- Node.js 20 or newer
+- npm
+- MongoDB running locally (default setup), or a MongoDB URI for another deployment
+- A modern browser to open the frontend
 
-## Run the frontend
+## Quick start
 
-Open `frontend/index.html` in a modern browser. The frontend uses the chess.js browser build from a CDN. Local games run entirely in the browser; no backend is required for them.
+### 1) Install MongoDB
 
-## Run the backend
+Install and run MongoDB locally. For the default local setup, the backend expects:
 
-In a terminal, change to the `backend` directory and install dependencies:
+- URI: `mongodb://127.0.0.1:27017`
+- database: `house_chess`
+
+You can verify the local MongoDB service with:
+
+```sh
+mongosh mongodb://127.0.0.1:27017
+```
+
+If you prefer MongoDB Compass, connect to:
+
+```text
+mongodb://127.0.0.1:27017
+```
+
+### 2) Install backend dependencies
+
+From the repository root:
 
 ```sh
 cd backend
 npm install
+```
+
+### 3) Start the backend
+
+```sh
 npm start
 ```
 
-The server listens on `http://localhost:3000` by default. Check that it is running at `http://localhost:3000/health`.
+By default, the server listens on:
 
-To run the backend integration tests or syntax check:
+```text
+http://localhost:3000
+```
+
+Check the health endpoint:
+
+```text
+http://localhost:3000/health
+```
+
+Expected response:
+
+```json
+{ "status": "ok" }
+```
+
+### 4) Run the frontend
+
+Open the frontend in a browser:
+
+```text
+frontend/index.html
+```
+
+The local board game works entirely in the browser without the backend. The backend is required for multiplayer features, accounts, game persistence, and online rooms.
+
+## Environment variables
+
+The backend accepts these environment variables:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP and Socket.IO server port |
+| `MONGODB_URI` | `mongodb://127.0.0.1:27017` | MongoDB connection string |
+| `MONGODB_DATABASE` | `house_chess` | MongoDB database name |
+| `AUTH_SECRET` | development fallback | HMAC secret used for auth tokens |
+| `NODE_ENV` | unset | Set to `production` for production checks |
+| `CORS_ORIGIN` | `*` | Allowed origins, comma-separated |
+| `DB_PATH` | unset | Local SQLite path used for migration/testing, not normal runtime |
+
+Example local configuration:
+
+```sh
+set MONGODB_URI=mongodb://127.0.0.1:27017
+set MONGODB_DATABASE=house_chess
+set AUTH_SECRET=change-this-secret
+set CORS_ORIGIN=http://localhost:3000
+npm start
+```
+
+## Running tests and checks
+
+From the backend folder:
 
 ```sh
 npm test
 npm run check
 ```
 
-### Backend configuration
+## MongoDB, Postman, and Compass
 
-| Environment variable | Default | Description |
-| --- | --- | --- |
-| `PORT` | `3000` | HTTP and Socket.IO server port |
-| `MONGODB_URI` | `mongodb://127.0.0.1:27017` | MongoDB server connection string |
-| `MONGODB_DATABASE` | `house_chess` | MongoDB database name |
-| `AUTH_SECRET` | development fallback | HMAC secret for account tokens; required in production |
-| `NODE_ENV` | unset | Set to `production` to enable secure startup checks |
-| `CORS_ORIGIN` | `*` | Comma-separated allowed origins; `*` allows any origin |
+This project uses:
 
-For local development, install MongoDB as a Windows service as described in the MongoDB guide, then verify it with `mongosh mongodb://127.0.0.1:27017`. Set `CORS_ORIGIN` to the specific origins that should access the backend for deployment. The backend persists completed games and stats in the `games` and `playerStats` collections, but active games and socket connections are in memory and do not survive a restart.
+- MongoDB Compass to visually inspect the database and collections.
+- Postman to call the Node.js HTTP endpoints.
+- Node.js + Express + Socket.IO to run the server logic.
 
-To migrate the existing SQLite records:
+Important distinction:
+
+- Postman does not "connect to Node.js" in the same sense that MongoDB Compass connects to MongoDB.
+- Postman sends HTTP requests to the backend API.
+- Compass connects directly to MongoDB.
+- The Node.js backend connects to MongoDB using `MONGODB_URI`.
+
+Example Postman requests:
+
+- `POST http://localhost:3000/api/auth/signup`
+- `POST http://localhost:3000/api/auth/login`
+- `GET http://localhost:3000/api/games?playerId=player-1234&limit=20`
+
+For Socket.IO multiplayer actions, use a Socket.IO client or the frontend app, not Postman.
+
+## API summary
+
+The backend exposes these HTTP endpoints:
+
+- `POST /api/auth/signup` — create an account
+- `POST /api/auth/login` — log in and receive a token
+- `GET /api/auth/me` — get current account info from a bearer token
+- `GET /api/games?playerId=...&limit=...` — list completed games for a player
+- `GET /api/games/:gameId` — fetch a single completed game
+- `GET /api/players/:playerId/stats` — fetch player stats
+
+## Migration
+
+If you have an existing SQLite database, you can migrate it to MongoDB:
 
 ```sh
 set DB_PATH=backend\data\chess.sqlite
@@ -92,13 +194,16 @@ set MONGODB_DATABASE=house_chess
 npm run migrate:mongodb
 ```
 
-## Connecting a frontend client
-
-The backend exposes Socket.IO events for real-time games, but `frontend/app.js` currently emits browser `CustomEvent`s (such as `house:matchmaking-request` and `house:move`) rather than connecting to Socket.IO. To enable online play, add a Socket.IO client integration that translates UI actions to the backend requests and applies incoming `gameState` updates. Follow the event contracts and input constraints in the [backend guide](backend/README.md).
-
 ## Notes
 
-- Player IDs accepted by the backend are identifiers, not authenticated accounts. Do not use the resulting casual statistics as trusted rankings.
-- Chat is plain text. Any client displaying messages must insert them as text rather than HTML.
-- Signup and login use the backend account API. Set a strong `AUTH_SECRET` and a restricted `CORS_ORIGIN` before deployment.
-- MongoDB access control is required for production; the unauthenticated localhost service is for development only.
+- Player IDs are identifiers, not trusted account identities. Do not treat casual stats as a reliable ranking.
+- Chat messages are plain text; clients should render them as text, not HTML.
+- For production, use a strong `AUTH_SECRET` and a restricted `CORS_ORIGIN`.
+- MongoDB access control is required in production; the default unauthenticated local setup is intended for development only.
+- The frontend fetches chess.js and fonts from CDNs, so an internet connection is needed when loading the browser UI.
+
+## What this repo is not
+
+This repository is not a single monolithic app where the browser automatically drives the multiplayer backend. The backend is a separate service, and the browser app is a separate frontend experience.
+
+If you want to work with the online multiplayer features, run the backend and connect to its HTTP routes and Socket.IO events. If you want the local board UI, open the static frontend directly in a browser.
