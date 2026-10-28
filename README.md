@@ -185,10 +185,11 @@ The backend exposes these HTTP endpoints:
 
 ## Migration
 
-If you have an existing SQLite database, you can migrate it to MongoDB:
+If you have an existing SQLite database, migrate it from the `backend` directory. This moves completed games and stats, plus users and active room snapshots when those SQLite tables exist:
 
 ```sh
-set DB_PATH=backend\data\chess.sqlite
+cd backend
+set DB_PATH=data\chess.sqlite
 set MONGODB_URI=mongodb://127.0.0.1:27017
 set MONGODB_DATABASE=house_chess
 npm run migrate:mongodb

@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check store.js",
+    "check": "node --check server.js && node --check store.js && node --check scripts/migrate-sqlite-to-mongodb.js",
     "migrate:mongodb": "node scripts/migrate-sqlite-to-mongodb.js",
     "test": "node --test"
   },

@@ -222,6 +222,36 @@ test('rematches swap colors and each completed game is persisted', async () => {
   assert.equal((await historyResponse.json()).games.length, 2);
 });
 
+test('active games restore their position after a server restart', async () => {
+  const { service, databasePath } = await createService();
+  const white = await connectClient(`http://127.0.0.1:${service.httpServer.address().port}`);
+  const black = await connectClient(`http://127.0.0.1:${service.httpServer.address().port}`);
+
+  const created = await emitAck(white, 'createGame', {
+    roomId: 'RESTORE1',
+    name: 'Ari',
+    playerId: 'player-ari-004',
+  });
+  await emitAck(black, 'joinGame', {
+    roomId: created.roomId,
+    name: 'Sam',
+    playerId: 'player-sam-004',
+  });
+  await emitAck(white, 'makeMove', { roomId: created.roomId, from: 'e2', to: 'e4' });
+  await emitAck(black, 'makeMove', { roomId: created.roomId, from: 'e7', to: 'e5' });
+
+  await service.close();
+  const restartedService = createChessServer({ databasePath });
+  services.push(restartedService);
+  await restartedService.ready;
+  await new Promise((resolve) => restartedService.httpServer.listen(0, resolve));
+
+  const restoredGame = restartedService.games.get(created.roomId);
+  assert.ok(restoredGame);
+  assert.equal(restoredGame.gameId, created.state.gameId);
+  assert.deepEqual(restoredGame.chess.history(), ['e4', 'e5']);
+});
+
 test('a clock expiring ends the game and invalid clock controls are rejected', async () => {
   const { url, service } = await createService();
   const white = await connectClient(url);

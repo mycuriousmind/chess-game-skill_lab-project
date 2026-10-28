@@ -21,7 +21,7 @@ Accounts are available through `POST /api/auth/signup`, `POST /api/auth/login`, 
 
 Active rooms are also stored in the `activeGames` collection. On restart, board positions and clocks are restored; players reconnect using the same authenticated account or player ID and rejoin their seat.
 
-To migrate the existing SQLite database, set `DB_PATH`, `MONGODB_URI`, and `MONGODB_DATABASE`, then run `npm run migrate:mongodb`. The migration is duplicate-safe and does not modify the SQLite file.
+From the backend directory, run `npm run migrate:mongodb` to migrate the SQLite database at `data/chess.sqlite` to the configured MongoDB database. Set `DB_PATH`, `MONGODB_URI`, and `MONGODB_DATABASE` to override the source path or destination. The migration is duplicate-safe, preserves games, player stats, users, and active room snapshots (when those optional SQLite tables exist), and does not modify the SQLite file.
 
 Run `npm test` for the backend integration tests. Node.js 20 or newer is required. The tests pass an explicit temporary SQLite path for isolation; production startup uses MongoDB.
 

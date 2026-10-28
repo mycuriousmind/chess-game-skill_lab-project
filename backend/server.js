@@ -394,7 +394,7 @@ function createChessServer(options = {}) {
       game.termination = snapshot.termination;
       game.drawOffer = snapshot.drawOffer;
       game.rematchOffers = new Set(snapshot.rematchOffers || []);
-      game.chess.load_pgn(snapshot.pgn || '');
+      game.chess.loadPgn(snapshot.pgn || '');
       game.clock.remainingMs = {
         w: snapshot.clock.whiteMs,
         b: snapshot.clock.blackMs,
